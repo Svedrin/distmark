@@ -71,8 +71,15 @@ class WorkerVM(object):
 
 
 def main():
-    pm = PostMark(1,2,3)
-    print json.dumps(pm.parse_result(open(sys.argv[-1], "r").read()), indent=4)
+    parser = OptionParser()
+
+    parser.add_option("-t", "--test-postmark", default=None, help="Tests the postmark result parser. Pass an appropriate input file as this option's value.")
+
+    options, posargs = parser.parse_args()
+
+    if options.test_postmark:
+        pm = PostMark(None, None, None)
+        print json.dumps(pm.parse_result(open(options.test_postmark, "r").read()), indent=4)
 
 
 if __name__ == '__main__':
