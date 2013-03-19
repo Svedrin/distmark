@@ -81,7 +81,7 @@ def dumpobj(obj):
 
 
 class WorkerVM(object):
-    def __init__(self, name, bootfile, execdir=os.getcwd(), basedir=os.getcwd()):
+    def __init__(self, name, bootfile, execdir=os.getcwd(), basedir=os.getcwd(), vncdisplay=0):
         self.monpath = os.path.join(basedir, "%s.mon" % name)
         self.qmppath = os.path.join(basedir, "%s.qmp" % name)
         self.ctlpath = os.path.join(basedir, "%s.ctl" % name)
@@ -94,7 +94,8 @@ class WorkerVM(object):
             "-chardev", "socket,id=charqmp,path=%s,server,nowait" % self.qmppath,
             "-mon",     "chardev=charqmp,id=qmp,mode=control",
             "-chardev", "socket,id=charctl,path=%s,server,nowait" % self.ctlpath,
-            "-device",  "isa-serial,chardev=charctl,id=serial0"
+            "-device",  "isa-serial,chardev=charctl,id=serial0",
+            "-vnc",     "0.0.0.0:%d" % vncdisplay, "-usbdevice", "tablet", "-k", "en-us"
             ]
         self.kvm = subprocess.Popen(self.kvmopts, env={
             "TMPDIR": execdir
