@@ -3,8 +3,10 @@
 # kate: space-indent on; indent-width 4; replace-tabs on;
 
 import re
+import os
 import sys
 import json
+import socket
 import subprocess
 
 from optparse import OptionParser
@@ -66,8 +68,50 @@ class PostMark(object):
             result.update(m.groupdict())
         return result
 
+
+
+def sendobj(sock, obj):
+    return sock.send(json.dumps(obj))
+
+def recvobj(sock, buflen=4096):
+    return json.loads(sock.recv(buflen))
+
+def dumpobj(obj):
+    print json.dumps(obj, indent=4)
+
+
 class WorkerVM(object):
-    pass
+    def __init__(self, name, bootfile, execdir=os.getcwd(), basedir=os.getcwd()):
+        self.monpath = os.path.join(basedir, "%s.mon" % name)
+        self.ctlpath = os.path.join(basedir, "%s.ctl" % name)
+
+        self.kvmopts = ["kvm",
+            "-name",    name,
+            "-drive",   "file=%s,format=qcow2,snapshot=on" % bootfile,
+            "-chardev", "socket,id=charmonitor,path=%s,server,nowait" % self.monpath,
+            "-mon",     "chardev=charmonitor,id=monitor,mode=control",
+            "-chardev", "socket,id=charctl,path=%s,server,nowait" % self.ctlpath,
+            "-device",  "isa-serial,chardev=charctl,id=serial0"
+            ]
+        self.kvm = subprocess.Popen(self.kvmopts, env={
+            "TMPDIR": execdir
+            })
+
+        self.mon = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.mon.connect(self.monpath)
+        dumpobj(recvobj(self.mon))
+        sendobj(self.mon, {"execute": "qmp_capabilities"})
+        dumpobj(recvobj(self.mon))
+
+        self.ctl = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.ctl.connect(self.ctlpath)
+
+    def command(self, command):
+        sendobj(self.mon, {"execute": command})
+        return recvobj(self.mon)
+
+    def quit(self):
+        return self.command("quit")
 
 
 def main():
