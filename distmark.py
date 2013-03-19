@@ -83,13 +83,16 @@ def dumpobj(obj):
 class WorkerVM(object):
     def __init__(self, name, bootfile, execdir=os.getcwd(), basedir=os.getcwd()):
         self.monpath = os.path.join(basedir, "%s.mon" % name)
+        self.qmppath = os.path.join(basedir, "%s.qmp" % name)
         self.ctlpath = os.path.join(basedir, "%s.ctl" % name)
 
         self.kvmopts = ["kvm",
             "-name",    name,
             "-drive",   "file=%s,format=qcow2,snapshot=on" % bootfile,
-            "-chardev", "socket,id=charmonitor,path=%s,server,nowait" % self.monpath,
-            "-mon",     "chardev=charmonitor,id=monitor,mode=control",
+            "-chardev", "socket,id=charmon,path=%s,server,nowait" % self.monpath,
+            "-mon",     "chardev=charmon",
+            "-chardev", "socket,id=charqmp,path=%s,server,nowait" % self.qmppath,
+            "-mon",     "chardev=charqmp,id=qmp,mode=control",
             "-chardev", "socket,id=charctl,path=%s,server,nowait" % self.ctlpath,
             "-device",  "isa-serial,chardev=charctl,id=serial0"
             ]
@@ -99,16 +102,19 @@ class WorkerVM(object):
 
         self.mon = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.mon.connect(self.monpath)
-        dumpobj(recvobj(self.mon))
-        sendobj(self.mon, {"execute": "qmp_capabilities"})
-        dumpobj(recvobj(self.mon))
+
+        self.qmp = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.qmp.connect(self.qmppath)
+        dumpobj(recvobj(self.qmp))
+        sendobj(self.qmp, {"execute": "qmp_capabilities"})
+        dumpobj(recvobj(self.qmp))
 
         self.ctl = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.ctl.connect(self.ctlpath)
 
     def command(self, command):
-        sendobj(self.mon, {"execute": command})
-        return recvobj(self.mon)
+        sendobj(self.qmp, {"execute": command})
+        return recvobj(self.qmp)
 
     def quit(self):
         return self.command("quit")
