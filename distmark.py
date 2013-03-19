@@ -6,6 +6,7 @@ import re
 import os
 import sys
 import json
+import errno
 import socket
 import subprocess
 
@@ -69,6 +70,15 @@ class PostMark(object):
         return result
 
 
+def sockconnect(sock, path):
+    while True:
+        try:
+            sock.connect(path)
+            break
+        except socket.error, err:
+            if err.errno == errno.ECONNREFUSED:
+                pass
+
 
 def sendobj(sock, obj):
     return sock.send(json.dumps(obj))
@@ -102,16 +112,16 @@ class WorkerVM(object):
             })
 
         self.mon = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.mon.connect(self.monpath)
+        sockconnect(self.mon, self.monpath)
 
         self.qmp = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.qmp.connect(self.qmppath)
+        sockconnect(self.qmp, self.qmppath)
         dumpobj(recvobj(self.qmp))
         sendobj(self.qmp, {"execute": "qmp_capabilities"})
         dumpobj(recvobj(self.qmp))
 
         self.ctl = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.ctl.connect(self.ctlpath)
+        sockconnect(self.ctl, self.ctlpath)
 
     def command(self, command):
         sendobj(self.qmp, {"execute": command})
