@@ -35,14 +35,14 @@ int main(int argc, char **argv){
 	lastops = 0;
 	ops = 0;
 	
-	fd = open("/dev/urandom", 0);
+	fd = open("/dev/urandom", O_RDONLY);
 	read(fd, srsdata, 32 * 4096);
 	close(fd);
 	
 	srand(time(NULL));
 	
 	printf("Using file '%s'.\n", argv[1]);
-	fd = open(argv[1], O_WRONLY | O_CREAT | O_SYNC, S_IRUSR | S_IWUSR);
+	fd = open(argv[1], O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
 	if( fd == -1 ){
 		perror("open() failed");
 		return 1;
