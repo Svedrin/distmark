@@ -113,6 +113,7 @@ int main(int argc, char **argv){
 				perror("open() failed");
 				return 1;
 			}
+			unlink(testfile);
 			
 			// Kickstart the stats reporter
 			signal(SIGALRM, printstats);
