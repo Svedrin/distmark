@@ -4,6 +4,7 @@
 #include <sys/select.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
@@ -62,6 +63,9 @@ int main(int argc, char **argv){
 		printf("Number of processes must be at least 1!\n");
 		return 1;
 	}
+	if( argv[1][strlen(argv[1]) - 1] == '/' ){
+		argv[1][strlen(argv[1]) - 1] = 0;
+	}
 	child_pid  = malloc( sizeof(int) * numprocs );
 	child_pipe = malloc( sizeof(int) * numprocs );
 	int i=0;
@@ -92,6 +96,7 @@ int main(int argc, char **argv){
 			// Open output file
 			srand(time(NULL));
 			char testfile[256];
+			
 			snprintf(testfile, 256, "%s/test%d.img", argv[1], i);
 			printf("Using file '%s'.\n", testfile);
 			fd = open(testfile, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
