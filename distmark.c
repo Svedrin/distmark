@@ -66,6 +66,15 @@ int main(int argc, char **argv){
 	if( argv[1][strlen(argv[1]) - 1] == '/' ){
 		argv[1][strlen(argv[1]) - 1] = 0;
 	}
+	struct stat dirstat;
+	if( stat(argv[1], &dirstat) == -1 ){
+		perror("stat()");
+		return 1;
+	}
+	if( !S_ISDIR(dirstat.st_mode) ){
+		fprintf(stderr, "'%s' is not a directory\n", argv[1]);
+		return 1;
+	}
 	child_pid  = malloc( sizeof(int) * numprocs );
 	child_pipe = malloc( sizeof(int) * numprocs );
 	int i=0;
