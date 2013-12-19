@@ -22,7 +22,12 @@ int *child_pid;
 int *child_pipe;
 int pipefd[2];
 
+/**
+ *  Signal handlers
+ */
+
 void printstats(int sig){
+	// Used by the children to send their IOPS to the parent.
 	int currops = ops - lastops;
 	write(pipefd[1], &currops, sizeof(int));
 	lastops = ops;
@@ -31,6 +36,7 @@ void printstats(int sig){
 }
 
 void kill_children(int sig) {
+	// Used by the parent to kill its children.
 	int i = 0, status;
 	signal(SIGTERM, SIG_DFL);
 	signal(SIGINT, SIG_DFL);
@@ -42,6 +48,7 @@ void kill_children(int sig) {
 		i++;
 	}
 	free(child_pid);
+	free(child_pipe);
 	kill(getpid(), SIGINT);
 }
 
@@ -62,6 +69,11 @@ int main(int argc, char **argv){
 		pipe2(pipefd, O_NONBLOCK);
 		child_pid[i] = fork();
 		if(child_pid[i] == 0) {
+			/**
+			 *  All week long
+			 *  bossman say
+			 *  work, meheecan, work
+			 */
 			int fd, dataidx;
 			unsigned int maxblock;
 			off_t pos;
@@ -72,10 +84,12 @@ int main(int argc, char **argv){
 			
 			close(pipefd[0]);
 			
+			// Gather 32 4k blocks of random data
 			fd = open("/dev/urandom", O_RDONLY);
 			read(fd, srsdata, 32 * 4096);
 			close(fd);
 			
+			// Open output file
 			srand(time(NULL));
 			char testfile[256];
 			snprintf(testfile, 256, "%s/test%d.img", argv[1], i);
@@ -86,10 +100,13 @@ int main(int argc, char **argv){
 				return 1;
 			}
 			
-			maxblock = 10737418240 / 4096; /* 10GB */
+			// Kickstart the stats reporter
 			signal(SIGALRM, printstats);
 			alarm(1);
+			
+			maxblock = 10737418240 / 4096; /* 10GB */
 			while(1){
+				// Write an arbitrary block of data to an arbitrary position in the file
 				pos = (rand() % maxblock) * 4096;
 				if( lseek(fd, pos, SEEK_SET) == -1 ){
 					fprintf(stderr, "lseek(%d, %ld) failed: ", fd, pos);
@@ -123,6 +140,10 @@ int main(int argc, char **argv){
 	signal(SIGTERM, kill_children);
 	signal(SIGINT,  kill_children);
 	
+	/**
+	 *  Stats printing
+	 */
+	
 	struct timeval tv;
 	int *child_iops = malloc( sizeof(int) * numprocs );
 	int maxfd;
@@ -137,6 +158,8 @@ int main(int argc, char **argv){
 		maxfd = 0;
 		FD_ZERO(&selectfds);
 		
+		// Make sure we have a consistent record set by selecting only over those
+		// pipes which we have not queried yet
 		for( i = 0; i < numprocs; i++ ){
 			if( child_iops[i] == -1 ){
 				FD_SET(child_pipe[i], &selectfds);
@@ -152,12 +175,14 @@ int main(int argc, char **argv){
 			perror("select()");
 		}
 		else if(selectret > 0){
+			// Read results
 			for( i = 0; i < numprocs; i++ ){
 				if( FD_ISSET(child_pipe[i], &selectfds) ){
 					read(child_pipe[i], &child_iops[i], sizeof(int));
 				}
 			}
 			
+			// See if we have everything we need and if so, print
 			int haveall = 1;
 			for( i = 0; i < numprocs; i++ ){
 				if( child_iops[i] == -1 ){
@@ -182,7 +207,6 @@ int main(int argc, char **argv){
 			// dafuq no dataz!?
 			printf("timeout...\n");
 		}
-		
 	}
 	
 	return 0;
