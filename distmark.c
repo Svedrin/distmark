@@ -1,6 +1,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/select.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -12,13 +13,18 @@
 #error "Your OS's randomizer sucks."
 #endif
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
 int numprocs;
 int lastops;
 int ops;
 int *child_pid;
+int *child_pipe;
+int pipefd[2];
 
 void printstats(int sig){
-	printf("%d\n", ops - lastops);
+	int currops = ops - lastops;
+	write(pipefd[1], &currops, sizeof(int));
 	lastops = ops;
 	signal(SIGALRM, printstats);
 	alarm(1);
@@ -49,9 +55,11 @@ int main(int argc, char **argv){
 		printf("Number of processes must be at least 1!\n");
 		return 1;
 	}
-	child_pid = malloc( sizeof(int) * numprocs );
+	child_pid  = malloc( sizeof(int) * numprocs );
+	child_pipe = malloc( sizeof(int) * numprocs );
 	int i=0;
 	while(i < numprocs) {
+		pipe2(pipefd, O_NONBLOCK);
 		child_pid[i] = fork();
 		if(child_pid[i] == 0) {
 			int fd, dataidx;
@@ -61,6 +69,8 @@ int main(int argc, char **argv){
 			
 			lastops = 0;
 			ops = 0;
+			
+			close(pipefd[0]);
 			
 			fd = open("/dev/urandom", O_RDONLY);
 			read(fd, srsdata, 32 * 4096);
@@ -85,32 +95,94 @@ int main(int argc, char **argv){
 					fprintf(stderr, "lseek(%d, %ld) failed: ", fd, pos);
 					perror("");
 					close(fd);
+					close(pipefd[1]);
 					return 1;
 				}
 				dataidx = rand() & 31; /* select record to write */
 				if( write(fd, srsdata + (dataidx * 4096), 4096) == -1 ){
 					perror("write() failed");
 					close(fd);
+					close(pipefd[1]);
 					return 1;
 				}
 				++ops;
 			}
 			close(fd);
+			close(pipefd[1]);
 			return 0;
 		}
 		else if(child_pid[i] < 0) {
 			perror("fork() failed");
 			return 1;
 		}
+		child_pipe[i] = pipefd[0];
+		close(pipefd[1]);
 		i++;
 	}
 	
-	printf("signal() in %d\n", getpid());
 	signal(SIGTERM, kill_children);
 	signal(SIGINT,  kill_children);
 	
+	struct timeval tv;
+	int *child_iops = malloc( sizeof(int) * numprocs );
+	int maxfd;
+	int selectret;
+	fd_set selectfds;
+	
+	for( i = 0; i < numprocs; i++ ){
+		child_iops[i] = -1;
+	}
+	
 	while(1){
-		sleep(99999999);
+		maxfd = 0;
+		FD_ZERO(&selectfds);
+		
+		for( i = 0; i < numprocs; i++ ){
+			if( child_iops[i] == -1 ){
+				FD_SET(child_pipe[i], &selectfds);
+				maxfd = MAX(child_pipe[i], maxfd);
+			}
+		}
+		
+		tv.tv_sec  = 1;
+		tv.tv_usec = 1000;
+		
+		selectret = select(maxfd + 1, &selectfds, NULL, NULL, &tv);
+		if( selectret == -1 ){
+			perror("select()");
+		}
+		else if(selectret > 0){
+			for( i = 0; i < numprocs; i++ ){
+				if( FD_ISSET(child_pipe[i], &selectfds) ){
+					read(child_pipe[i], &child_iops[i], sizeof(int));
+				}
+			}
+			
+			int haveall = 1;
+			for( i = 0; i < numprocs; i++ ){
+				if( child_iops[i] == -1 ){
+					haveall = 0;
+					break;
+				}
+			}
+			
+			int iopssum = 0;
+			if( haveall ){
+				for( i = 0; i < numprocs; i++ ){
+					iopssum += child_iops[i];
+					printf("%6d\t", child_iops[i]);
+				}
+				printf("sum=%-6d avg=%-6d\n", iopssum, iopssum / numprocs);
+				for( i = 0; i < numprocs; i++ ){
+					child_iops[i] = -1;
+				}
+			}
+		}
+		else{
+			// dafuq no dataz!?
+			printf("timeout...\n");
+		}
+		
 	}
 	
 	return 0;
