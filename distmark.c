@@ -78,6 +78,7 @@ int main(int argc, char **argv){
 	child_pid  = malloc( sizeof(int) * numprocs );
 	child_pipe = malloc( sizeof(int) * numprocs );
 	int i=0;
+	srand(time(NULL));
 	while(i < numprocs) {
 		pipe2(pipefd, O_NONBLOCK);
 		child_pid[i] = fork();
@@ -102,10 +103,10 @@ int main(int argc, char **argv){
 			read(fd, srsdata, 32 * 4096);
 			close(fd);
 			
-			// Open output file
-			srand(time(NULL));
-			char testfile[256];
+			srand(rand());
 			
+			// Open output file
+			char testfile[256];
 			snprintf(testfile, 256, "%s/test%d.img", argv[1], i);
 			printf("Using file '%s'.\n", testfile);
 			fd = open(testfile, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
