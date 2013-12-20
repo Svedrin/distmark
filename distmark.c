@@ -22,6 +22,7 @@ int ops;
 int *child_pid;
 int *child_pipe;
 int pipefd[2];
+int max_iops;
 
 /**
  *  Signal handlers
@@ -54,11 +55,12 @@ void kill_children(int sig) {
 }
 
 int main(int argc, char **argv){
-	if( argc < 2 || argc > 3 ){
-		printf("Usage: %s <directory> [<numprocs = 4>]\n", argv[0]);
+	if( argc < 2 || argc > 4 ){
+		printf("Usage: %s <directory> [<numprocs = 4>] [<max_iops = ∞>]\n", argv[0]);
 		return 1;
 	}
 	numprocs = ( argc >= 3 ? atoi(argv[2]) : 4 );
+	max_iops = ( argc >= 4 ? atoi(argv[3]) : 0 );
 	if(numprocs <= 0) {
 		printf("Number of processes must be at least 1!\n");
 		return 1;
@@ -92,6 +94,11 @@ int main(int argc, char **argv){
 			unsigned int maxblock;
 			off_t pos;
 			char srsdata[32 * 4096];
+			int sleepusecs = 0;
+			
+			if(max_iops){
+				sleepusecs = 1000000 / (max_iops / numprocs);
+			}
 			
 			lastops = 0;
 			ops = 0;
@@ -138,6 +145,9 @@ int main(int argc, char **argv){
 					return 1;
 				}
 				++ops;
+				if(max_iops){
+					usleep(sleepusecs);
+				}
 			}
 			close(fd);
 			close(pipefd[1]);
