@@ -116,7 +116,7 @@ int main(int argc, char **argv){
 			char testfile[256];
 			snprintf(testfile, 256, "%s/test%d.img", argv[1], i);
 			printf("Using file '%s'.\n", testfile);
-			fd = open(testfile, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+			fd = open(testfile, O_WRONLY | O_CREAT | O_SYNC, S_IRUSR | S_IWUSR);
 			if( fd == -1 ){
 				perror("open() failed");
 				return 1;
