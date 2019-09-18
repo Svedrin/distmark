@@ -1,6 +1,6 @@
 # Distmark
 
-Originally conceived as _dist_ributed [post_mark_](http://www.filesystems.org/docs/auto-pilot/Postmark.html),
+Originally conceived as "DISTributed [postMARK](http://www.filesystems.org/docs/auto-pilot/Postmark.html)",
 this trusty little benchmark has been helping me assess performance of storage
 systems for half a decade now.
 
